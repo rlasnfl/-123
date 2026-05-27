@@ -53,3 +53,143 @@
     
 </body>
 </html>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", Arial, sans-serif;
+    background: #f4f6f8;
+    color: #222;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 28px;
+}
+
+header {
+    margin-bottom: 24px;
+}
+
+h1 {
+    margin: 0 0 8px;
+    font-size: 2rem;
+}
+
+p.description {
+    margin: 4px 0 18px;
+    color: #555;
+    line-height: 1.6;
+}
+
+.control-card,
+.card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.08);
+    margin-bottom: 24px;
+}
+
+.controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+}
+
+button {
+    background: #2563eb;
+    border: none;
+    color: #fff;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+button:hover {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+}
+
+.recognized {
+    margin-top: 18px;
+}
+
+.recognized-box {
+    min-height: 100px;
+    background: #f8fafc;
+    border: 1px solid #d8dee4;
+    border-radius: 12px;
+    padding: 14px;
+    white-space: pre-wrap;
+    line-height: 1.6;
+}
+
+.result h2 {
+    margin-top: 0;
+}
+
+.detail-list {
+    list-style: none;
+    padding: 0;
+    margin: 14px 0 0;
+}
+
+.detail-list li {
+    margin-bottom: 10px;
+}
+
+.graph {
+    text-align: center;
+    margin-top: 18px;
+}
+
+.graph-container {
+    position: relative;
+    width: 120px;
+    height: 240px;
+    margin: 0 auto;
+    border: 1px solid #d8dee4;
+    border-radius: 18px;
+    background: #eef2ff;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.graph-bar {
+    width: 60px;
+    border-radius: 12px 12px 0 0;
+    background: #34d399;
+    transition: height 0.4s ease, background 0.4s ease;
+}
+
+.threshold-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 40%;
+    height: 2px;
+    background: #f59e0b;
+}
+
+#graph-value {
+    margin-top: 10px;
+    font-weight: 600;
+}
+
+.note {
+    color: #6b7280;
+    margin-top: 14px;
+    font-size: 0.95rem;
+}
+
+.footer {
+    text-align: center;
+    margin-top: 20px;
+    color: #6b7280;
+    font-size: 0.95rem;
+}
