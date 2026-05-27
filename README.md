@@ -188,8 +188,219 @@ button:hover {
 }
 
 .footer {
-    text-align: center;
+   text-align: center;
     margin-top: 20px;
     color: #6b7280;
     font-size: 0.95rem;
 }
+
+
+
+
+
+const SAMPLE_TEXT = "안녕하세요. 검찰 수사관입니다. 귀하의 계좌에서 이상 거래가 발견되어 지금 즉시 송금해 주셔야 합니다. 이 사실은 누구에게도 말하지 마세요.";
+const RISK_WEIGHTS = {
+    "검찰": 2.0,
+    "수사관": 2.0,
+    "계좌": 2.0,
+    "송금": 2.0,
+    "지금 즉시": 1.5,
+    "오늘까지": 1.5,
+    "비밀": 1.5,
+    "누구에게도 말하지 마세요": 3.0,
+    "이체": 2.0,
+    "구속": 1.5,
+    "수사": 1.5,
+    "발설": 1.5,
+    "말하지": 1.5,
+};
+const LEGAL_KEYWORDS = ["검찰", "수사관", "계좌", "송금"];
+const URGENT_KEYWORDS = ["지금 즉시", "오늘까지", "비밀"];
+const ISOLATE_PHRASE = "누구에게도 말하지 마세요";
+const RISK_THRESHOLD = 10.0;
+
+const statusEl = document.getElementById('voice-status');
+const speakButton = document.getElementById('speak-button');
+const startButton = document.getElementById('start-voice-button');
+const stopButton = document.getElementById('stop-voice-button');
+const recognizedTextEl = document.getElementById('recognized-text');
+const resultSection = document.getElementById('result-section');
+const riskScoreEl = document.getElementById('risk-score');
+const riskLabelEl = document.getElementById('risk-label');
+const detailListEl = document.getElementById('detail-list');
+const riskBarEl = document.getElementById('risk-bar');
+const graphValueEl = document.getElementById('graph-value');
+
+let recognition = null;
+let latestResultText = '';
+let userStopped = false;
+let isRecognizing = false;
+let lastAnalysis = null;
+
+function normalizeText(text) {
+    return text.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function calculateRiskScore(text) {
+    const normalized = normalizeText(text);
+    const detailScores = {};
+    let totalScore = 0.0;
+
+    Object.keys(RISK_WEIGHTS).forEach((phrase) => {
+        const weight = RISK_WEIGHTS[phrase];
+        let count = 0;
+
+        if (phrase.length > 0) {
+            const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escaped, 'g');
+            const matches = normalized.match(regex);
+            count = matches ? matches.length : 0;
+        }
+
+        if (count === 0 && phrase.length <= 4 && normalized.includes(phrase)) {
+            count = 1;
+        }
+
+        if (count > 0) {
+            detailScores[phrase] = count * weight;
+            totalScore += detailScores[phrase];
+        }
+    });
+
+    const sentences = normalized.split(/[.!?]\s*|\n+/).filter(Boolean);
+    sentences.forEach((sentence) => {
+        const hasLegal = LEGAL_KEYWORDS.some((keyword) => sentence.includes(keyword));
+        const hasUrgent = URGENT_KEYWORDS.some((keyword) => sentence.includes(keyword));
+        const hasIsolate = sentence.includes(ISOLATE_PHRASE);
+
+        if (hasLegal && hasUrgent) totalScore += 2.0;
+        if (hasLegal && hasIsolate) totalScore += 3.0;
+        if (hasUrgent && hasIsolate) totalScore += 2.5;
+    });
+
+    const label = totalScore > RISK_THRESHOLD
+        ? '이 전화는 보이스피싱 가능성이 매우 높습니다'
+        : '보이스피싱일 가능성이 낮습니다';
+
+    return { score: totalScore, label, detailScores };
+}
+
+function renderResult({ score, label, detailScores }) {
+    resultSection.style.display = 'block';
+    riskScoreEl.textContent = score.toFixed(1);
+    riskLabelEl.textContent = label;
+    detailListEl.innerHTML = '';
+
+    Object.entries(detailScores)
+        .filter(([, value]) => value > 0)
+        .forEach(([phrase, value]) => {
+            const li = document.createElement('li');
+            li.textContent = `${phrase}: ${value.toFixed(1)}`;
+            detailListEl.appendChild(li);
+        });
+
+    const maxScore = Math.max(15, score * 1.1, RISK_THRESHOLD);
+    const heightPercent = Math.min(100, (score / maxScore) * 100);
+    riskBarEl.style.height = `${Math.max(12, heightPercent)}%`;
+    riskBarEl.style.background = score > RISK_THRESHOLD ? '#ef4444' : '#34d399';
+    graphValueEl.textContent = `${score.toFixed(1)}점 (${Math.round(heightPercent)}%)`;
+    speakButton.style.display = 'inline-block';
+}
+
+function supportsSpeechRecognition() {
+    return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
+function initVoiceStatus() {
+    if (supportsSpeechRecognition()) {
+        statusEl.textContent = '음성 인식을 사용할 수 있습니다. 버튼을 눌러 말해주세요.';
+    } else {
+        statusEl.textContent = '이 브라우저에서는 음성 인식이 지원되지 않습니다.';
+    }
+}
+
+function startVoiceInput() {
+    if (!supportsSpeechRecognition()) {
+        statusEl.textContent = '이 브라우저에서는 음성 인식이 지원되지 않습니다.';
+        return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.lang = 'ko-KR';
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.maxAlternatives = 1;
+
+    userStopped = false;
+    isRecognizing = true;
+    startButton.disabled = true;
+    stopButton.style.display = 'inline-block';
+    statusEl.textContent = '음성 인식 중... 말을 계속하실 수 있습니다. 멈추려면 음성 인식 종료 버튼을 누르세요.';
+    recognizedTextEl.textContent = '';
+    latestResultText = '';
+
+    recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+            transcript += event.results[i][0].transcript;
+        }
+        transcript = transcript.trim();
+        latestResultText = transcript;
+        recognizedTextEl.textContent = transcript || SAMPLE_TEXT;
+        statusEl.textContent = '음성 인식 중... (중지 버튼을 누르면 분석을 실행합니다.)';
+    };
+
+    recognition.onerror = (event) => {
+        statusEl.textContent = '음성 인식 중 오류가 발생했습니다: ' + event.error;
+        isRecognizing = false;
+        startButton.disabled = false;
+        stopButton.style.display = 'none';
+    };
+
+    recognition.onend = () => {
+        isRecognizing = false;
+        startButton.disabled = false;
+        stopButton.style.display = 'none';
+
+        if (userStopped) {
+            submitAnalysis();
+        } else {
+            statusEl.textContent = '음성 인식이 중단되었습니다. 다시 시도해 주세요.';
+        }
+    };
+
+    recognition.start();
+}
+
+function stopVoiceInput() {
+    if (recognition && isRecognizing) {
+        userStopped = true;
+        statusEl.textContent = '음성 인식을 종료하는 중입니다...';
+        recognition.stop();
+    } else {
+        statusEl.textContent = '현재 음성 인식이 실행 중이 아닙니다.';
+    }
+}
+
+function submitAnalysis() {
+    const text = latestResultText || SAMPLE_TEXT;
+    lastAnalysis = calculateRiskScore(text);
+    renderResult(lastAnalysis);
+    statusEl.textContent = '분석이 완료되었습니다.';
+}
+
+function speakResult() {
+    if (!lastAnalysis) {
+        statusEl.textContent = '먼저 분석을 완료한 뒤 결과를 음성으로 들을 수 있습니다.';
+        return;
+    }
+    const utterance = new SpeechSynthesisUtterance(`총 위험 점수는 ${lastAnalysis.score.toFixed(1)}점입니다. ${lastAnalysis.label}`);
+    utterance.lang = 'ko-KR';
+    window.speechSynthesis.speak(utterance);
+}
+
+startButton.addEventListener('click', startVoiceInput);
+stopButton.addEventListener('click', stopVoiceInput);
+speakButton.addEventListener('click', speakResult);
+initVoiceStatus();
